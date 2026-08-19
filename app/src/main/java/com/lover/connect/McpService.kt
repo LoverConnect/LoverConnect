@@ -1011,15 +1011,45 @@ ${if (personality.isNotEmpty()) "- $personality" else ""}
             "notify" -> {
                 if (message.isNotEmpty()) {
                     toolSendNotification(JSONObject().apply { put("message", message) })
+                    pushToChat("【小L·提醒】$message")
                 }
             }
             "popup" -> {
                 if (message.isNotEmpty()) {
                     toolSendNotification(JSONObject().apply { put("message", message) })
+                    pushToChat("【小L】$message")
                 }
             }
             // "log" 和 "none" 不做额外操作
         }
+    }
+
+    // 把小L观察到的内容推送到对话，让AI直接看到
+    private fun pushToChat(content: String) {
+        try {
+            val prefs = getSharedPreferences("lc_config", Context.MODE_PRIVATE)
+            if (!prefs.getBoolean("push_enabled", true)) return
+            val urlStr = prefs.getString("push_url", "http://127.0.0.1:9090/api/conversations/2850db7d-2c87-4843-a494-3b8ee28e1f2c/messages") ?: return
+            if (urlStr.isEmpty()) return
+            val conn = URL(urlStr).openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.connectTimeout = 10000
+            conn.readTimeout = 10000
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+            val body = JSONObject().apply {
+                put("parts", JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("type", "text")
+                        put("text", content)
+                    })
+                })
+            }
+            conn.outputStream.write(body.toString().toByteArray())
+            conn.outputStream.flush()
+            conn.inputStream.close()
+            conn.disconnect()
+        } catch (_: Exception) {}
     }
 
     private fun readRecentEyesLog(lines: Int): String {
